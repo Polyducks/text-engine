@@ -316,6 +316,7 @@
 	//PRINT
 	function Print( string ){
 		el.output.innerHTML += string + "</br>";
+		el.output.scrollTop = el.output.scrollHeight;
 	}
 	//MOVE
 	function Move( dir, roomNo ){
