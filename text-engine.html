@@ -1,0 +1,551 @@
+<style>
+	body, HTML{
+		width: 100%;
+		height: 100%;
+		margin: 0;
+		padding: 0;
+	}
+	body{
+		padding: 10px;
+	}
+	*{
+		box-sizing: border-box;
+	}
+	#output{
+		border: 1px solid black;
+		height: calc( 100% - 50px );
+		overflow-y: scroll;
+		font-family: helvetica;
+		padding: 2px 5px;
+	}
+	#input-wrapper{
+		position: fixed;
+		bottom: 10px;
+		left: 0;
+		padding: 10px 5px;
+		overflow: auto;
+		width: 100%;
+		background-color: #e5e5e5;
+	}
+		#input{
+			display: block;
+			float: left;
+			width: calc( 100% - 120px );
+		}
+		#send{
+			display: block;
+			float: left;
+			cursor: pointer;
+			display: inline;
+			width: 120px;
+			text-align: center;
+		}
+
+	/*---------------------------
+	FONT STYLES FOR THE GAME TEXT
+	---------------------------*/	
+	
+	.high{
+		font-weight: bold;
+		font-style: italic;
+	}
+	
+	.item{
+		color: #848284;
+	}
+	
+	.color-1{color: #000084} 	/* DARK BLUE 	*/
+	.color-2{color: #008200} 	/* DARK GREEN 	*/
+	.color-3{color: #008284} 	/* DARK CYAN 	*/
+	.color-4{color: #840000} 	/* DARK RED 	*/
+	.color-5{color: #840084} 	/* DARK MAGENTA */
+	.color-6{color: #848200} 	/* DARK YELLOW 	*/
+	.color-7{color: #C6C3C6} 	/* LIGHT GREY 	*/
+	.color-8{color: #848284} 	/* DARK GREY 	*/
+	.color-9{color: #0000FF} 	/* BLUE 		*/
+	.color-10{color: #00FF00} 	/* GREEN 		*/
+	.color-11{color: #00FFFF}	/* CYAN			*/
+	.color-12{color: #FF0000}	/* RED			*/
+	.color-13{color: #FF00FF}	/* MAGENTA		*/
+	.color-14{color: #FFFF00}	/* YELLOW		*/
+	.color-15{color: #FFFFFF}	/* WHITE		*/
+	
+</style>
+
+<div id="output"></div>
+<div id="input-wrapper">
+	<input id="input" autofocus type="text"></input><button id="send">SEND</button>
+</div>
+
+<script>
+
+(function(){
+
+	//--------------------------
+	// SHORTCUTS
+	//--------------------------
+	var sh = "<span class='high'>",
+	si = "<span class='item'>",
+	s1 = "<span class='color-1'>",
+	s2 = "<span class='color-2'>",
+	s3 = "<span class='color-3'>",
+	s4 = "<span class='color-4'>",
+	s5 = "<span class='color-5'>",
+	s6 = "<span class='color-6'>",
+	s7 = "<span class='color-7'>",
+	s8 = "<span class='color-8'>",
+	s9 = "<span class='color-9'>",
+	s10 = "<span class='color-10'>",
+	s11 = "<span class='color-11'>",
+	s12 = "<span class='color-12'>",
+	s13 = "<span class='color-13'>",
+	s14 = "<span class='color-14'>",
+	s15 = "<span class='color-15'>",
+	s = "</span>";
+	
+	var north = /^(north|n)$/i,
+	east = /^(east|e)$/i,
+	south = /^(south|s)$/i,
+	west = /^(west|w)$/i,
+	inside = /^(inside|in)$/i,
+	outside = /^(outside|out)$/i;
+	
+	//--------------------------
+	//DOM
+	//--------------------------
+	var el = {};
+		el.input = document.getElementById( "input" );
+		el.output = document.getElementById( "output" );
+		el.send = document.getElementById( "send" );
+
+	//--------------------------
+	//ROOMS
+	//--------------------------
+	var room = [
+		{
+			"name" : "outside of the hostel",
+			"desc" : "You are standing on the path outside of the hostel. There is a path that leads "+
+					sh+"south."+s+" The earth is fresh and damp from a recent rain. The river "+
+					"far below thunders mutely to itself amongst the chirping of birds.",
+			"commands" :[
+				new Command( north, function(rex){
+					Print( "You don't want to go back into the hostel. You want to explore.");
+				}),
+				new Command( south, function(rex){
+					Move ("south", 1);
+				})
+			],
+			"items" : [
+				0, 2
+			]
+		},
+		{
+			"name" : "a path by the river",
+			"desc" : "You are further along path.",
+			"commands" : [
+				new Command( north, function(rex){
+					Move ("north", 0);
+				})
+			],
+			"items" : [
+				1, 2, 3
+			]
+		}
+	];
+	
+	//PLAYER
+	var player = {};
+		player.health = 100;
+		player.inventory = []; //add things to the inventory using their ID numbers
+		player.location = 0;
+	
+	//array of all the items in the world
+	var things = [
+		new Thing( 
+			/*ID*/ 				0,
+			/*ARTICLE, NAME */	"the", "spindly trees",
+			/*DESCRIPTION*/		"Trees grow narrowly up from the path at either side. Their branches are old and wrinkly yet full of life.",
+			/*ROOMDESC*/		"Trees crowd the edge of the path.",
+			/*KEYWORDS*/		["tree", "trees", "wood", "woods"],
+			/*GETABLE*/			false,
+			/*DROPABLE*/		false,
+			/*USE*/				null
+		),
+		new Thing( 
+			/*ID*/ 				1,
+			/*ARTICLE, NAME */	"a", "rusty axe",
+			/*DESCRIPTION*/		"The axe is heavy and rusty with a cracked handle.",
+			/*ROOMDESC*/		"An axe lies here in the dirt.",
+			/*KEYWORDS*/		["axe", "weapon", "tool"],
+			/*GETABLE*/			true,
+			/*DROPABLE*/		true,
+			/*USE*/				function(){ Print("You swing the axe around.") }
+		),
+		new Thing( 
+			/*ID*/ 				2,
+			/*ARTICLE, NAME */	"the", "birds",
+			/*DESCRIPTION*/		"Bluetits, nut hatches and a smattering of crows hop from branch to branch in the persuit of food.",
+			/*ROOMDESC*/		"",
+			/*KEYWORDS*/		["bird", "birds", "bluetit", "bluetits", "crow", "crows"],
+			/*GETABLE*/			false,
+			/*DROPABLE*/		false,
+			/*USE*/				null
+		),
+		new Thing( 
+			/*ID*/ 				3,
+			/*ARTICLE, NAME */	"a", "grand oak tree",
+			/*DESCRIPTION*/		"The great, knotted tangle of roots hold this tree up against the bank. It grips tightly to large stones which might have otherwise toppled ages ago.",
+			/*ROOMDESC*/		"Barely holding its ground against decades of landslides, a single oak stands here.",
+			/*KEYWORDS*/		["tree", "trees", "wood", "woods", "oak"],
+			/*GETABLE*/			false,
+			/*DROPABLE*/		false,
+			/*USE*/				null
+		)
+	];
+
+	//global inputs
+	var globalInput = [
+		new Command( /^(look|l)\s?(.*)$/i, function(rex){
+			if ( rex[2] == "" ){
+				Show_Room( player.location );
+			}else{
+				var arrayOfWords = rex[2].replace(",", "").trim().split(" ");
+				Examine( arrayOfWords );
+			}
+		}),
+		new Command( /^examine\s?(.*)$/i, function(rex){
+			var arrayOfWords = rex[1].replace(",", "").trim().split(" ");
+			Examine( arrayOfWords );
+		}),
+		new Command( /^(inventory|inv)$/i, function(rex){
+			var invString = "";
+			if ( player.inventory.length == 0 ){
+				invString = "Your inventory is empty.";
+			}else{
+				itemArray = [];
+				for (var i = 0; i < player.inventory.length; i++ ){
+					var returnedItem = Find_Item_By_Id( player.inventory[i] );
+					if ( returnedItem ){
+						itemArray.push( returnedItem.name );
+					}
+				}
+				if (player.inventory.length == 1){
+					Print( "You have " + player.inventory.length + " item in your inventory." );
+				}else{
+					Print( "You have " + player.inventory.length + " items in your inventory." );
+				}
+				invString = itemArray.join(", ");
+			}
+			Print( invString );
+		}),
+		new Command( /^(get|take|g)\s?(.*)$/i, function(rex){
+			if ( rex[2] == "" ){
+				Print("What would you like to take?");
+			}else{
+				var arrayOfWords = rex[2].replace(",", "").trim().split(" ");
+				Get( arrayOfWords );
+			}
+		}),
+		new Command( /^use\s?(.*)$/i, function(rex){
+			if ( rex[1] == "" ){
+				Print("What would you like to use?");
+			}else{
+				var arrayOfWords = rex[1].replace(",", "").trim().split(" ");
+				Use( arrayOfWords );
+			}
+		}),
+		new Command( /^drop\s?(.*)$/i, function(rex){
+			if ( rex[1] == "" ){
+				Print("What would you like to drop?");
+			}else{
+				var arrayOfWords = rex[1].replace(",", "").trim().split(" ");
+				Drop( arrayOfWords );
+			}
+		})
+	];
+
+	//--------------------------
+	//EVENT LISTENERS
+	//--------------------------
+	
+	//send button
+	el.send.addEventListener( "click", function(){
+		Input( el.input.value );
+		el.input.value = "";
+	});
+	//send on enter
+	el.input.addEventListener( "keypress", function(e){
+		if ( e.keyCode == 13 ){
+			Input( el.input.value );
+			el.input.value = "";
+		}
+	});
+	//catch focus
+	el.output.addEventListener( "click", function(){
+		el.input.focus();
+	});
+
+	//--------------------------
+	//FUNCTIONS
+	//--------------------------
+	
+	//INPUT
+	function Input( userInput ){
+		//a list of all the places where commands can be found
+		var commandLists = [
+			room[ player.location ].commands,
+			globalInput
+		];
+		//flag is switched on when a command is found and activated
+		var foundFlag = false;
+		for( var i = 0; i < commandLists.length; i++ ){
+			if( foundFlag ){break}
+			for( var j = 0; j < commandLists[i].length; j++ ){
+				if( commandLists[i][j].run( userInput ) ){
+					foundFlag = true;
+					break;
+				}
+			}
+		}
+		if (!foundFlag){
+			Print("Sorry, \"" + userInput + "\" isn't an option." );
+		}
+		
+	}
+	
+	//PRINT
+	function Print( string ){
+		el.output.innerHTML += string + "</br>";
+	}
+	//MOVE
+	function Move( dir, roomNo ){
+		Print( "You move " + dir + " to " + room[ roomNo ].name + "." );
+		Show_Room( roomNo );
+		player.location = roomNo;
+	}
+	//SHOW ROOM
+	function Show_Room( roomNo ){
+		Print_Items( roomNo );
+		var uppercaseRoomName = room[roomNo].name.charAt(0).toUpperCase() + room[roomNo].name.slice(1);
+		Print("");
+		Print( uppercaseRoomName );
+		Print( room[roomNo].itemDesc );
+	}
+	//CHECK VISIBLE
+	function Check_Visible( thing ){
+		if (thing){
+			//check if it's in the room or inv
+			if ( Check_Inventory( thing ) ||
+				Check_Room( thing )
+			){
+				return true;
+			}
+		}
+		return false;
+	}
+	//CHECK INVENTORY
+	function Check_Inventory( thing ){
+		if (thing){
+			if ( player.inventory.indexOf( thing.id ) !== -1 ){
+				return true;
+			}
+		}
+		return false;
+	}
+	//CHECK ROOM
+	function Check_Room( thing ){
+		if (thing){
+			if ( room[ player.location ].items.indexOf( thing.id ) !== -1 ){
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	//EXAMINE ITEM
+	function Examine( keywordList ){
+		var thing = Find_Item_By_Keyword( keywordList );
+		if ( thing ){
+			var foundFlag = false;
+			for ( var i = 0; i < thing.length; i++ ){
+				if (Check_Visible( thing[i] )){
+					Print( thing[i].article +" "+ thing[i].name );
+					Print( thing[i].desc );
+					foundFlag = true;
+					break;
+				}
+			}
+			if( !foundFlag ){
+				Print( "You can't see that thing here..." );
+			}
+		}else{
+			Print( "You can't see that thing here..." );
+		}
+	}
+	//GET ITEM
+	function Get( keywordList ){
+		var thing = Find_Item_By_Keyword( keywordList );
+		if ( thing ){
+			var foundFlag = false;
+			for ( var i = 0; i < thing.length; i++ ){
+				if ( Check_Room( thing[i] ) ){
+					foundFlag = true;
+					thing[i].get();
+					break;
+				}
+			}
+			if( !foundFlag ){
+				Print( "You can't see that thing here..." );
+			}
+		}else{
+			Print( "You can't see that thing here..." );
+		}
+	}
+	//DROP ITEM
+	function Drop( keywordList ){
+		var thing = Find_Item_By_Keyword( keywordList );
+		if ( thing ){
+			var foundFlag = false;
+			for ( var i = 0; i < thing.length; i++ ){
+				if ( Check_Inventory( thing[i] ) ){
+					foundFlag = true;
+					thing[i].drop();
+					break;
+				}
+			}
+			if( !foundFlag ){
+				Print( "You don't have that in your inventory." );
+			}
+		}else{
+			Print( "You don't have that in your inventory." );
+		}
+	}
+	//USE ITEM
+	function Use( keywordList ){
+		var thing = Find_Item_By_Keyword( keywordList );
+		if ( thing ){
+			var foundFlag = false;
+			for ( var i = 0; i < thing.length; i++ ){
+				if ( Check_Visible( thing[i] ) ){
+					thing[i].use();
+					foundFlag = true;
+					break;
+				}
+			}
+			if( !foundFlag ){
+				Print( "You can't see that thing here..." );
+			}
+		}
+	}
+	
+	
+	
+	/* Find_Item_By_Keyword should return an array */
+	
+	
+	
+	//RETURN BY KEYWORD
+	function Find_Item_By_Keyword( keywordList ){
+		var returnArray = [];
+		for( var i = 0; i < things.length; i++ ){
+			for( var j = 0; j < keywordList.length; j++ ){
+				if( things[i].keywords.indexOf( keywordList[j] ) !== -1 ){
+					if ( things[i] ){
+						returnArray.push( things[i] );
+					}
+				}
+			}
+		}
+		if ( returnArray.length > 0 ){
+			return returnArray;
+		}
+		return false;
+	}
+	//RETURN BY ID
+	function Find_Item_By_Id( id ){
+		for ( var i = 0; i < things.length; i++ ){
+			if ( things[i].id == id ){
+				return things[i];
+			}
+		}
+		return false;
+	}
+	//PRINT ITEMS TO ROOMS
+	function Print_Items( roomNo ){
+		room[roomNo].itemDesc = room[roomNo].desc;
+		for ( var i = 0; i < room[roomNo].items.length; i++ ){
+			var item = Find_Item_By_Id( room[roomNo].items[i] );
+			if (item){
+				if ( item.roomDesc.length > 0 ){
+					room[roomNo].itemDesc += "</br>" +si+ item.roomDesc +s;
+				}
+			}
+		}
+	}
+	
+	//--------------------------
+	//OBJECT DEFINITIONS
+	//--------------------------
+	
+	//COMMAND
+	function Command( regexp, result ){
+		this.regexp = regexp;
+		this.result = result;
+		var that = this;
+		this.exec = function( string ){
+			return that.regexp.exec( string );
+		}
+		this.run = function( string ){
+			var regexpReturn = that.exec( string );
+			if ( regexpReturn ){
+				that.result( regexpReturn );
+				return true;
+			}
+			return false;
+		}
+	}
+	
+	//THING
+	//article = a/an/the
+	function Thing( id, article, name, desc, roomDesc, keywords, getable, dropable, use ){
+		this.id = id;
+		this.article = article;
+		this.name = name;
+		this.desc = desc;
+		this.roomDesc = roomDesc;
+		this.keywords = keywords;
+		this.getable = getable;
+		this.dropable = dropable;
+		this.useable = Boolean(use);
+		var that = this;
+		this.get = function(){
+			if (that.getable){
+				player.inventory.push( that.id );
+				var itemIndex = room[player.location].items.indexOf( that.id );
+				room[player.location].items.splice( itemIndex, 1 );
+				Print( "You take " + that.article + " " + that.name + "." );
+			}else{
+				Print( "You can't take " + that.article + " " + that.name + "." );
+			}
+		}
+		this.drop = function(){
+			if (that.dropable){
+				room[player.location].items.push( that.id );
+				var itemIndex = player.inventory.indexOf( that.id );
+				player.inventory.splice( itemIndex, 1 );
+				Print( "You drop " + that.article + " " + that.name + "." );
+			}else{
+				Print( "You can't drop " + that.article + " " + that.name + "." );
+			}
+		}
+		this.use = use || function(){
+			Print( "You can't think of a suitable use for "+ that.article +" "+ that.name + "." )
+		};
+	}
+	//--------------------------
+	//MAIN
+	//--------------------------
+	Show_Room(0);
+	
+})();
+</script>
